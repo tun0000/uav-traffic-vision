@@ -49,12 +49,23 @@ def ensure_dataset(data_root: Path) -> None:
     if (data_root / "images" / "train").exists():
         return
     print(f"{data_root} not found - triggering ultralytics auto-download (~2.3 GB)")
+    import subprocess
+    import sys
+
     from ultralytics import settings
 
     settings.update({"datasets_dir": str(data_root.parent)})
-    from ultralytics.data.utils import check_det_dataset
-
-    check_det_dataset("VisDrone.yaml", autodownload=True)
+    # ultralytics freezes DATASETS_DIR at import time, so the download must run
+    # in a fresh interpreter that reads the setting updated above
+    subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from ultralytics.data.utils import check_det_dataset; "
+            "check_det_dataset('VisDrone.yaml', autodownload=True)",
+        ],
+        check=True,
+    )
 
 
 def scan_split(data_root: Path, split: str) -> dict:
