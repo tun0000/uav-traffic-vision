@@ -98,8 +98,38 @@
 - Gradio demo（`app/`）：圖片偵測版、CPU ONNX（`YOLO("best.onnx")` 路徑）、**SAHI on/off toggle**（預設關，附 CPU 切片推論較慢的警語）、內建 2–3 張範例圖；可部署免費 Space。影片追蹤用 README GIF 展示即可。
 - README 完成：動機（台灣無人機產業應用：巡檢、海巡、智慧交通）、資料集 EDA 圖、640/1024/SAHI 三段結果表、SAHI 並排圖、車流 GIF、benchmark 表、Jetson 遷移段、重現步驟、HF 連結、授權聲明。
 
-## Phase 3（選做，使用者明說才做）
-- DOTA-v1.0 旋轉框（OBB）：ultralytics `DOTAv1.yaml` + `split_dota` 前處理、`yolo26s-obb`——展示同一空拍領域的另一種標註型態。
+## Phase 3（選做，使用者已於 2026-07-07 明確說開始）
+
+延續同一空拍領域，換一種標註型態：DOTA-v1.0 的旋轉框（OBB）。定位是「補充展示」而非第二個完整專案——不重做 SAHI／車流／邊緣部署那一整套，只走「資料 → 訓練 → 輕量評估」，證明同一套 YOLO26 pipeline 換一個 task head、換一種標註方式也能順利跑通。
+
+已確認的前提（2026-07 上網查證 ultralytics 官方文件與原始碼，含直接讀 `split_dota.py` 原始碼確認函式簽名）：
+- **DOTA-v1.0**：15 類（plane, ship, storage tank, baseball diamond, tennis court, basketball court, ground track field, harbor, bridge, large vehicle, small vehicle, helicopter, roundabout, soccer ball field, swimming pool）；2,806 張影像、188,282 個標註（train 1,411 / val 458 / test 937，test 無標籤）；ultralytics `DOTAv1.yaml` 自動下載（~2GB）。學術用途授權（commercial use prohibited）。
+- **標籤格式**：`class_id x1 y1 x2 y2 x3 y3 x4 y4`（4 個角點，正規化座標）——與 VisDrone 的 `class_id xc yc w h` 完全不同，EDA／smoke test 都要對應調整（角點轉 (w,h,angle) 沿用 `ultralytics.utils.ops.xyxyxyxy2xywhr` 同一套 `cv2.minAreaRect` 邏輯，確保跟模型實際訓練時的角度定義一致）。
+- **原始影像過大，無法直接餵給 YOLO**：本專案實測長邊 421–13,383px、中位數 ~2100px、85%+ 超過 1024px（見 `reports/dota_stats.md`）。官方要求先用 `ultralytics.data.split_dota.split_trainval()` 切成重疊的 1024×1024 tile（函式預設 `crop_size=1024, gap=200, rates=(1.0,)`；官方文件範例另外展示 multiscale `rates=[0.5,1,1.5]` 但那是 3 倍前處理與訓練資料量的加強版，本專案先用函式預設的單一尺度控制 Colab 成本，multiscale 留作 README 中的可選延伸）。`split_dota` 依賴 `shapely`（已 `uv add shapely` 補齊，避免重演 tensorrt 那次的 pip/uv 依賴漂移)。
+- **YOLO26-obb**：`yolo26n-obb.pt` ~ `yolo26x-obb.pt`，輸出角度正規化到 `[-pi/4, 3pi/4)`；`model.val()` 內建 rotated-IoU 版 mAP（不需要像 VisDrone 那樣另外接 pycocotools）；SAHI 官方文件未提及支援 OBB，本階段不做 SAHI 對照。
+- 沿用主線的權重命名慣例：`yolo26s_dota_1024.pt`（資料集+解析度命名，避免跨專案泛用檔名）。
+
+### Step 10：DOTA EDA（本機）— 已完成
+`scripts/dota_stats.py`：觸發官方自動下載（沿用 VisDrone 的 DATASETS_DIR 凍結陷阱 fix：`settings.update` 後另開 subprocess），對 train/val 原始（未切片）影像統計：類別分佈、影像解析度分布（motivate 切片的必要性）、旋轉框轉 (w,h,angle) 後的面積分桶（沿用 VisDrone 同一套 tiny/small/medium/large 門檻方便跨資料集對照）、角度分布（量化有多少比例的框其實不是軸對齊）、長寬比分布（量化細長物件如 bridge/harbor 的存在）。輸出 `reports/dota_stats.md` + 4 張圖。
+
+### Step 11：本機 split_dota 切片 + 4090 smoke test
+`scripts/prepare_dota_obb.py`：對完整 train+val（1,869 張）跑一次 `split_trainval`（本機負責資料前處理，符合 CLAUDE.md 分工），輸出到 `~/datasets/DOTAv1-split/`；再從切好的 tile 中抽樣（300 train / 100 val，沿用 VisDrone smoke test 的抽樣數）建 `DOTAv1_obb_subset` + yaml。用 `yolo26n-obb.pt`、1 epoch、imgsz=1024 在小子集上驗證：loss 正常下降、val 算得出 OBB mAP、predict 疊圖目視確認框確實是旋轉的（非純軸對齊）。
+
+### Step 12：`notebooks/train_yolo26obb_dota_colab.ipynb`（Runtime → Run all 一鍵跑完）
+- Colab 內重新下載 DOTAv1 原始資料 + 重新跑一次 `split_trainval`（Colab 本地磁碟，同 Phase 1 VisDrone「不依賴本機上傳、Colab 自己重下」的慣例）。
+- 訓練設定：`yolo26s-obb.pt`、imgsz=1024（tile 尺寸本身就是 1024，不需要像主線那樣另外比較 640 vs 1024）、epochs=100、patience=20、seed 固定；batch 依偵測到的 GPU 動態調整（A100/L4，沿用主線 1024 實驗學到的保守值起手：A100 24 / L4 8，因為 OBB head 在 1024 下的實際顯存足跡未知，先保守再視第一個 epoch 的 GPU_mem 決定要不要調高）。
+- 結束後 best.pt 複製到 Drive 固定路徑，檔名沿用 `yolo26s_dota_1024` 命名慣例。
+- **此 notebook 完成後 Phase 3 本機端工作停止**，等使用者去 Colab 訓練、把權重放進 `weights/`。
+
+### Step 13（權重就位後，選做）：輕量評估
+- `model.val()` 直接拿 OBB 內建 mAP50 / mAP50-95（rotated IoU），不必另建 pycocotools pipeline。
+- 挑 2–3 張代表性影像（密集船隻／機場、細長橋樑）疊圖展示旋轉框（用 ultralytics 內建的 OBB plot）。
+- README 加一小節「另一種標註型態」，附 EDA 圖 + 訓練結果 + 疊圖，定調為補充展示而非第二個主線章節。
+
+### 風險與備案（Phase 3 專屬）
+- **DOTA-v1.0 官方下載失效** → 使用者手動下載官方連結，格式仍走 ultralytics 內建 loader。
+- **split_dota 本機跑太久或磁碟不夠** → 本機磁碟餘裕 900GB+，實測風險低；真的太久可退而求其次只切 train+val 各一個子集。
+- **OBB 在 1024 的實際顯存需求超乎預期**（比照主線 1024 實驗 A100 93% VRAM 的教訓）→ Colab notebook 預設用保守 batch，不做本機沒驗證過的激進值。
 
 ## 風險與備案
 
