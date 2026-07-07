@@ -24,3 +24,9 @@ runs/
 
 # notebooks
 .ipynb_checkpoints/
+
+# intermediate eval artifacts (large, regeneratable — see scripts/evaluate.py)
+reports/.eval_coco/
+
+# harness-local state
+.claude/

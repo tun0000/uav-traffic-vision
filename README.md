@@ -8,8 +8,8 @@ with [SAHI](https://github.com/obss/sahi) sliced inference for dense tiny object
 ByteTrack-based traffic flow counting, and an edge-deployment benchmark
 (ONNX / TensorRT FP16).
 
-> **Status: work in progress** — Phase 1 (data pipeline + training notebook) done,
-> training and evaluation pending.
+> **Status: work in progress** — 640 baseline trained and evaluated; SAHI comparison,
+> traffic counting, edge deployment, and publishing still pending.
 
 ## Why this matters
 
@@ -35,14 +35,39 @@ converted by ultralytics' built-in `VisDrone.yaml`. Key findings from the EDA
 
 ## Results
 
-<!-- TODO(Phase 2): the three-stage small-object story: imgsz=640 baseline →
-imgsz=1024 → SAHI sliced inference, same metrics side by side -->
+yolo26s trained 97 epochs (early-stopped, patience=20) at imgsz=640 on VisDrone2019-DET.
+Full breakdown, per-class table, and overlay figures in
+[reports/evaluation.md](reports/evaluation.md).
 
 | Setting | mAP50 | mAP50-95 | AP (small) | AR@100 |
 |---------|-------|----------|------------|--------|
-| yolo26s @ 640, direct | TBD | TBD | TBD | TBD |
+| yolo26s @ 640, direct | 0.379 | 0.220 | 0.184 | 0.354 |
 | yolo26s @ 1024, direct (optional) | TBD | TBD | TBD | TBD |
 | yolo26s @ 640 + SAHI | TBD | TBD | TBD | TBD |
+
+Two independent evaluation paths agree closely (ultralytics `model.val()`: mAP50-95
+0.220; an independent pycocotools COCO-eval built from scratch: 0.223), cross-validating
+the pipeline.
+
+### Small-object breakdown
+
+The dataset's small-object skew (see EDA above) shows up directly in accuracy — AP more
+than doubles from the smallest to the largest bucket:
+
+| bucket (bbox side) | AP@[.5:.95] | AR@100 |
+|---------------------|-------------|--------|
+| tiny (<16px) | 0.075 | 0.184 |
+| small (16-32px) | 0.184 | 0.333 |
+| medium (32-96px) | 0.318 | 0.462 |
+| large (>96px) | 0.480 | 0.595 |
+
+This gap is exactly what the SAHI comparison below is meant to close.
+
+| Dense scene (187 detections) | Small-object-heavy scene |
+|---|---|
+| ![dense scene](reports/figures/dense_0000295_02400_d_0000033.jpg) | ![small-object scene](reports/figures/tiny_0000242_06010_d_0000017.jpg) |
+
+More examples in [reports/evaluation.md](reports/evaluation.md).
 
 ## SAHI sliced inference
 
@@ -80,6 +105,9 @@ uv run python scripts/dataset_stats.py
 uv run python scripts/make_subset.py
 
 # 4. train — open notebooks/train_yolo26_visdrone_colab.ipynb in Google Colab (Runtime -> Run all)
+
+# 5. evaluate a trained checkpoint (overall + per-class + small-object breakdown)
+uv run python scripts/evaluate.py --weights weights/yolo26s_visdrone_640.pt
 ```
 
 ## License & dataset attribution
