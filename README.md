@@ -8,8 +8,8 @@ with [SAHI](https://github.com/obss/sahi) sliced inference for dense tiny object
 ByteTrack-based traffic flow counting, and an edge-deployment benchmark
 (ONNX / TensorRT FP16).
 
-> **Status: work in progress** — 640/1024 baselines evaluated, SAHI comparison and
-> traffic counting done; edge deployment and publishing still pending.
+> **Status: work in progress** — 640/1024 baselines evaluated, SAHI comparison,
+> traffic counting, and edge deployment benchmarks done; publishing still pending.
 
 ## Why this matters
 
@@ -135,9 +135,67 @@ Full stats: [reports/traffic/stats.json](reports/traffic/stats.json).
 
 ## Edge deployment
 
-<!-- TODO(Phase 2): ONNX CPU / TensorRT FP16 RTX 4090 benchmark table (measured on
-a desktop, stated honestly), the path to Jetson-class onboard computers and expected
-bottlenecks, and why YOLO26's NMS-free end-to-end head matters for onboard deployment -->
+**All numbers below were measured on this desktop (RTX 4090 / host CPU), not on a
+Jetson** — there is no onboard hardware available for this project. Treat the
+Jetson discussion as an informed migration plan, not a benchmark.
+
+### Benchmark (batch=1, imgsz=640, 100 timed runs)
+
+| backend | mean (ms) | p50 (ms) | p95 (ms) | FPS |
+|---------|-----------|----------|----------|-----|
+| PyTorch .pt (4090) | 13.41 | 13.35 | 14.40 | 74.6 |
+| ONNX (CPU) | 48.95 | 49.77 | 53.05 | 20.4 |
+| TensorRT FP16 (4090) | **11.52** | 11.34 | 14.11 | **86.8** |
+
+TensorRT FP16 beats plain PyTorch by ~14% and CPU ONNX by ~4.2x on this GPU. Full
+numbers: [reports/edge_benchmark.md](reports/edge_benchmark.md).
+
+### Why YOLO26's NMS-free head matters here
+
+Exporting confirmed it directly: the ONNX/TensorRT graph's output tensor is a fixed
+`(1, 300, 6)` — no NMS op in the graph at all (`end2end=True` is YOLO26's default for
+export-friendly formats). For onboard deployment this removes real pain points:
+
+- **No NMS plugin dependency** — TensorRT NMS plugins are a recurring source of
+  version-compatibility breakage across TensorRT releases; a fixed-shape output
+  needs none.
+- **Deterministic latency** — a classic NMS box count varies with scene content
+  (more candidate boxes in a dense frame → slower NMS); a flight controller loop
+  budgeting a fixed time slice per frame benefits from output shape (and cost)
+  not depending on scene content.
+- **Simpler INT8 quantization** — NMS's sort/threshold ops don't quantize cleanly;
+  a plain conv/concat graph is a much easier calibration target if a future INT8
+  pass is needed for a lower-power module.
+- **Trade-off, stated honestly**: fixed at 300 detections/frame — our EDA showed
+  this saturates on only ~0.5% of VisDrone val images at realistic confidence, so
+  it's a non-issue for VisDrone-scale scenes, but a truly crowded scene (a stadium,
+  a parking lot from very low altitude) could hit it.
+
+### Path to a Jetson-class onboard computer
+
+1. **The `.engine` file here will not run on a Jetson.** TensorRT engines are
+   compiled for a specific GPU architecture (this one targets Ada Lovelace,
+   compute capability 8.9); a Jetson Orin (Ampere, 8.7) needs its own build. The
+   ONNX file is portable and is the actual deployment artifact — `trtexec` or
+   `model.export(format="engine")` re-run **on the Jetson itself**.
+2. **Expected throughput**: an AGX Orin's Tensor Cores deliver roughly a tenth of
+   an RTX 4090's dense FP16 throughput. Scaling the 11.5ms/frame TensorRT number
+   this naively (it won't hold exactly — Orin has a very different memory
+   hierarchy and the model is latency-, not just throughput-bound at batch=1)
+   suggests **a low-tens-of-ms range, plausibly 20-40 FPS** on a mid-tier Orin
+   module — worth validating on real hardware before committing to a flight
+   control loop rate, not assuming.
+3. **Shared memory, not discrete VRAM**: Jetson modules use unified CPU/GPU
+   memory (8-64GB depending on SKU) shared with the rest of the flight stack
+   (state estimation, path planning) — the training-time VRAM headroom
+   discussions earlier in this project (a 24-80GB discrete GPU) don't transfer;
+   the real constraint on an 8GB Orin Nano is closer to the CPU ONNX benchmark's
+   memory footprint than the desktop GPU's.
+4. **Power budget**: onboard inference draws from the same battery as flight
+   time. A 15-25W Orin module inference load is a real trade against flight
+   duration, unlike a desktop's wall power — this is the actual reason to
+   default to the smaller `yolo26n`/`yolo26s` scales rather than `l`/`x` for an
+   airborne system, independent of raw accuracy.
 
 ## Demo
 
@@ -170,6 +228,9 @@ uv run python scripts/sahi_compare.py --weights weights/yolo26s_visdrone_640.pt
 uv run python scripts/fetch_visdrone_mot.py
 uv run python scripts/traffic_count.py --video ~/datasets/VisDrone-MOT-val/uav0000137_00458_v.mp4 \
     --line 0.02,0.32,0.97,0.22 --gif reports/figures/traffic_demo.gif --gif-len 9
+
+# 8. export ONNX + TensorRT FP16, benchmark CPU vs GPU
+uv run python scripts/export_benchmark.py --weights weights/yolo26s_visdrone_640.pt
 ```
 
 ## License & dataset attribution
