@@ -8,8 +8,8 @@ with [SAHI](https://github.com/obss/sahi) sliced inference for dense tiny object
 ByteTrack-based traffic flow counting, and an edge-deployment benchmark
 (ONNX / TensorRT FP16).
 
-> **Status: work in progress** — 640 baseline trained and evaluated; SAHI comparison,
-> traffic counting, edge deployment, and publishing still pending.
+> **Status: work in progress** — 640/1024 baselines evaluated, SAHI comparison and
+> traffic counting done; edge deployment and publishing still pending.
 
 ## Why this matters
 
@@ -115,8 +115,23 @@ finds 24 (distant vehicles, roadside pedestrians, the truck on the right).*
 
 ## Traffic flow counting
 
-<!-- TODO(Phase 2): main GIF — detection + ByteTrack + virtual counting line,
-per-class vehicle counts (stats.json) -->
+Detection (`yolo26s_visdrone_640`, imgsz=1280) + ByteTrack + a virtual counting line
+on a near-stationary drone hover over a busy intersection
+([VisDrone2019-MOT val](https://huggingface.co/datasets/Voxel51/visdrone-mot), CC BY-SA).
+The counter uses proper segment-segment intersection (not an infinite-line side flip,
+which would double-count a vehicle idling near the line) and counts each track ID once;
+only vehicle classes are counted, pedestrians/bicycles are detected and drawn but
+excluded. Full writeup: [reports/traffic_analysis.md](reports/traffic_analysis.md).
+
+![traffic counting demo](reports/figures/traffic_demo.gif)
+
+| direction | car | van | motor | total |
+|-----------|-----|-----|-------|-------|
+| dir_pos | 21 | 0 | 2 | 23 |
+| dir_neg | 7 | 2 | 2 | 11 |
+| **total** | 28 | 2 | 4 | **34** |
+
+Full stats: [reports/traffic/stats.json](reports/traffic/stats.json).
 
 ## Edge deployment
 
@@ -150,6 +165,11 @@ uv run python scripts/evaluate.py --weights weights/yolo26s_visdrone_640.pt
 
 # 6. direct vs SAHI comparison (sweep + full val + side-by-side figures)
 uv run python scripts/sahi_compare.py --weights weights/yolo26s_visdrone_640.pt
+
+# 7. traffic counting (fetches VisDrone-MOT val, ~1.7 GB, on first run)
+uv run python scripts/fetch_visdrone_mot.py
+uv run python scripts/traffic_count.py --video ~/datasets/VisDrone-MOT-val/uav0000137_00458_v.mp4 \
+    --line 0.02,0.32,0.97,0.22 --gif reports/figures/traffic_demo.gif --gif-len 9
 ```
 
 ## License & dataset attribution
@@ -157,4 +177,6 @@ uv run python scripts/sahi_compare.py --weights weights/yolo26s_visdrone_640.pt
 Code is MIT licensed. The [VisDrone2019 dataset](https://github.com/VisDrone/VisDrone-Dataset)
 (AISKYEYE team, Tianjin University) is available for **academic / research use only**;
 this project uses it for non-commercial portfolio research and does not redistribute
-the data. Model weights trained on VisDrone inherit that restriction.
+the data. Model weights trained on VisDrone inherit that restriction. The traffic-counting
+demo uses a clip from [VisDrone2019-MOT val](https://huggingface.co/datasets/Voxel51/visdrone-mot)
+(same AISKYEYE source, mirrored under **CC BY-SA**).

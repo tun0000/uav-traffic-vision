@@ -1,0 +1,46 @@
+{
+  "video": "uav0000137_00458_v.mp4",
+  "weights": "yolo26s_visdrone_640.pt",
+  "tracker": "bytetrack.yaml",
+  "imgsz": 1280,
+  "conf": 0.25,
+  "frames": 233,
+  "fps": 25.0,
+  "duration_s": 9.3,
+  "line_px": {
+    "p1": [
+      53.76,
+      483.84000000000003
+    ],
+    "p2": [
+      2607.36,
+      332.64
+    ]
+  },
+  "counted_classes": [
+    "car",
+    "van",
+    "truck",
+    "tricycle",
+    "awning-tricycle",
+    "bus",
+    "motor"
+  ],
+  "counts": {
+    "dir_pos": {
+      "car": 21,
+      "motor": 2
+    },
+    "dir_neg": {
+      "car": 7,
+      "motor": 2,
+      "van": 2
+    }
+  },
+  "totals": {
+    "dir_pos": 23,
+    "dir_neg": 11
+  },
+  "total_vehicles": 34,
+  "note": "each track id counted at most once; dir_pos = crossing along the green arrow (line normal), dir_neg = along the orange arrow"
+}
