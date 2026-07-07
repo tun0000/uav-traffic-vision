@@ -37,7 +37,7 @@
 │   ├── sahi_compare.py      # Phase 2：直接 vs SAHI 對照（指標 + 並排圖）
 │   ├── traffic_count.py     # Phase 2：track + 計數線 → stats.json + 標註影片
 │   └── export_benchmark.py  # Phase 2：ONNX / TensorRT FP16 匯出與 benchmark
-├── notebooks/train_colab.ipynb
+├── notebooks/train_yolo26_visdrone_colab.ipynb
 ├── app/                     # Phase 2：Gradio demo（HF Space, CPU ONNX）
 ├── reports/                 # 統計、sanity、結果圖、GIF（小檔進 git）
 └── weights/                 # gitignored；Phase 2 放 best.pt / best.onnx / best.engine
@@ -58,7 +58,7 @@
 - `make_subset.py` 抽 ~300 train / 100 val + subset data.yaml。
 - `yolo26n.pt`、1 epoch、imgsz=640：loss 正常下降、val 跑通、無 NaN；predict 2–3 張 val 圖疊圖人工確認。
 
-### Step 3：`notebooks/train_colab.ipynb`（Runtime → Run all 一鍵跑完）
+### Step 3：`notebooks/train_yolo26_visdrone_colab.ipynb`（Runtime → Run all 一鍵跑完）
 - Cells：GPU check → mount Drive → `git clone` 本 repo → pip install → VisDrone 自動下載到 **Colab 本地磁碟**（非 Drive，I/O 快）→ 訓練 → 驗證 → 產物存 Drive。
 - 訓練設定：`yolo26s.pt`、imgsz=640、epochs=100 + patience=20、seed 固定、augmentation 走預設（空拍場景不強加 flipud/rotation，v1 不過度調參）。
 - `project=` 指到 Drive 路徑 → checkpoint 自動落 Drive；附 `resume=True` 斷線續訓說明 cell；結束後 best.pt / results.csv 複製到 Drive 固定路徑。

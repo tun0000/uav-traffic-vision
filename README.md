@@ -79,7 +79,7 @@ uv run python scripts/dataset_stats.py
 # 3. local smoke test (small subset, 1 epoch, sanity check)
 uv run python scripts/make_subset.py
 
-# 4. train — open notebooks/train_colab.ipynb in Google Colab (Runtime -> Run all)
+# 4. train — open notebooks/train_yolo26_visdrone_colab.ipynb in Google Colab (Runtime -> Run all)
 ```
 
 ## License & dataset attribution
