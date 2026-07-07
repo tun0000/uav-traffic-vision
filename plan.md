@@ -40,7 +40,7 @@
 ├── notebooks/train_yolo26_visdrone_colab.ipynb
 ├── app/                     # Phase 2：Gradio demo（HF Space, CPU ONNX）
 ├── reports/                 # 統計、sanity、結果圖、GIF（小檔進 git）
-└── weights/                 # gitignored；Phase 2 放 best.pt / best.onnx / best.engine
+└── weights/                 # gitignored；Phase 2 放 yolo26s_visdrone_640.pt 等（.pt/.onnx/.engine）
 資料實體：WSL ~/datasets/VisDrone/（ultralytics settings 的 datasets_dir 指過去；不進 git）
 ```
 
@@ -65,9 +65,9 @@
 - **notebook 末尾「imgsz=1024 對照實驗」可選 cell**：先跑 2 epoch @1024 實測單 epoch 時間，換算總時數與 Colab compute units（L4 費率設為參數），**印出估算後停住**；需手動把 `RUN_1024 = False` 改 True 才會真的開訓。1024 權重另存 Drive 不覆蓋 640 版。
 
 ### Step 4：git commit（英文、一個里程碑一個 commit）
-**Phase 1 到此停止，等使用者去 Colab 訓練、把 best.pt 放進 weights/。**
+**Phase 1 到此停止，等使用者去 Colab 訓練、把權重放進 weights/（本專案命名慣例：`yolo26s_visdrone_640.pt`，避免跨專案都叫 best.pt 撞名）。**
 
-## Phase 2（weights/best.pt 就位後）
+## Phase 2（weights/yolo26s_visdrone_640.pt 就位後）
 
 ### Step 5：評估 `evaluate.py`
 - `model.val()`：mAP50 / mAP50-95、per-class AP → README 結果表。
