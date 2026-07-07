@@ -1,0 +1,26 @@
+# secrets
+.env
+
+# python
+__pycache__/
+*.pyc
+.venv/
+
+# data & artifacts — never commit datasets, weights, or training runs
+data/
+datasets/
+weights/
+runs/
+*.pt
+*.onnx
+*.engine
+*.zip
+
+# videos — README uses compressed GIFs instead
+*.mp4
+*.avi
+*.mov
+*.mkv
+
+# notebooks
+.ipynb_checkpoints/
