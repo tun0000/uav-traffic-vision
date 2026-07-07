@@ -13,9 +13,36 @@ ByteTrack-based traffic flow counting, and an edge-deployment benchmark
 
 ## Why this matters
 
-<!-- TODO(Phase 2): motivation — Taiwan's growing drone industry: infrastructure
-inspection, coast guard patrol, smart traffic monitoring. Small-object detection
-from aerial viewpoints is the shared core capability. -->
+Taiwan's drone industry is scaling quickly on the policy side: the Executive Yuan's
+「無人載具產業發展統籌型計畫」(approved Oct 2025) commits NT$44.2B through 2030 targeting
+NT$40B+ in annual UAV industry output, and the Ministry of National Defense is
+separately procuring on the order of tens of thousands of drones over 2026-2027. Most
+of that investment — the 無人機國家隊 formed in 2022, the Chiayi AAMIC R&D center — is
+concentrated on airframes and defense hardware. The perception layer (what a drone
+*sees* and *understands*) is comparatively less built out, and that's the layer this
+project is about.
+
+Three application domains map directly onto the pieces built here:
+
+- **Infrastructure inspection**: finding and localizing small objects at altitude
+  (this project's core small-object detection problem, and the reason SAHI sliced
+  inference is the centerpiece experiment) is the same capability needed to spot
+  defects, encroachments, or hazards in inspection footage.
+- **Coastal patrol**: the Ocean Affairs Council (海巡署) has already run a multi-year
+  drone pilot program (via Synmax Technology / Lite-On group) for maritime patrol,
+  extended after a positive review — detecting and tracking moving objects over
+  water from a patrolling airframe is a close analog to this project's
+  detect-track-count pipeline.
+- **Smart traffic management**: the traffic flow counting module here (YOLO26 +
+  ByteTrack + a virtual counting line) is a directly reusable building block for
+  drone- or fixed-camera-based traffic monitoring, an area Taiwanese city
+  governments' smart-city programs are actively funding.
+
+The common thread: small, dense, aerial-viewpoint objects; inference fast enough to
+matter in real time; and a credible path to onboard (edge) deployment. That's why
+this project's three technical legs — SAHI for small-object accuracy, tracking-based
+counting, and the ONNX/TensorRT edge benchmark — were built together rather than as
+three unrelated demos.
 
 ## Dataset
 
