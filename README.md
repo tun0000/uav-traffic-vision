@@ -36,18 +36,19 @@ converted by ultralytics' built-in `VisDrone.yaml`. Key findings from the EDA
 ## Results
 
 yolo26s trained 97 epochs (early-stopped, patience=20) at imgsz=640 on VisDrone2019-DET.
-Full breakdown, per-class table, and overlay figures in
-[reports/evaluation.md](reports/evaluation.md).
+All rows share one evaluation protocol (pycocotools, conf=0.01, maxDets=500 — dense
+scenes overflow COCO's default 100), so they are directly comparable. Per-class tables
+and figures: [reports/evaluation.md](reports/evaluation.md),
+[reports/sahi_comparison.md](reports/sahi_comparison.md).
 
-| Setting | mAP50 | mAP50-95 | AP (small) | AR@100 |
-|---------|-------|----------|------------|--------|
-| yolo26s @ 640, direct | 0.379 | 0.220 | 0.184 | 0.354 |
-| yolo26s @ 1024, direct (optional) | TBD | TBD | TBD | TBD |
-| yolo26s @ 640 + SAHI | TBD | TBD | TBD | TBD |
+| Setting | AP50 | AP@[.5:.95] | AP tiny (<16px) | AP small (16-32px) | AR@500 | ms/img (4090) |
+|---------|------|-------------|------------------|--------------------|--------|----------------|
+| yolo26s @ 640, direct | 0.380 | 0.222 | 0.075 | 0.184 | 0.348 | 10 |
+| yolo26s @ 1024, direct (training) | TBD | TBD | TBD | TBD | TBD | TBD |
+| yolo26s @ 640 + SAHI 512/0.2 | **0.465** | **0.269** | **0.134** | **0.248** | **0.455** | 107 |
 
 Two independent evaluation paths agree closely (ultralytics `model.val()`: mAP50-95
-0.220; an independent pycocotools COCO-eval built from scratch: 0.223), cross-validating
-the pipeline.
+0.220; the pycocotools pipeline above: 0.222), cross-validating the tooling.
 
 ### Small-object breakdown
 
@@ -71,8 +72,31 @@ More examples in [reports/evaluation.md](reports/evaluation.md).
 
 ## SAHI sliced inference
 
-<!-- TODO(Phase 2): direct vs SAHI side-by-side visualization + metric deltas on
-tiny/small buckets + latency trade-off -->
+[SAHI](https://github.com/obss/sahi) slices each image into overlapping tiles, runs the
+detector per tile, and merges the results — so a 15px pedestrian is seen at ~2x scale
+instead of shrinking into a few pixels at imgsz=640. A 3-config sweep (512/640/800 tile
+sizes, 100-image subset) picked **512×512 tiles, 0.2 overlap** by tiny-bucket AP. Full
+report: [reports/sahi_comparison.md](reports/sahi_comparison.md).
+
+On the full val set, SAHI vs direct inference:
+
+- **AP50 +22% relative** (0.380 → 0.465), overall AP +21% (0.222 → 0.269)
+- **Tiny-object AP +79% relative** (0.075 → 0.134), tiny-object recall AR@500 +75%
+  (0.181 → 0.316) — the buckets that dominate this dataset
+- Honest trade-offs: **10.2x per-image latency** (10 → 107 ms on RTX 4090), and large-object
+  AP dips slightly (0.480 → 0.455) since tiling can fragment big objects — the built-in
+  full-image pass (`perform_standard_pred=True`) recovers most but not all of it
+
+Slicing also side-steps YOLO26's end-to-end 300-detections-per-pass budget: at evaluation
+confidence (0.01), **323 of 548 val images saturate the cap in direct mode**, while SAHI's
+per-tile budget let the densest scene emit 966 detections. (At practical confidence
+thresholds like 0.25 the cap binds far less often — but for dense aerial scenes it is a
+real ceiling on recall.)
+
+![sahi vs direct](reports/figures/sahi_vs_direct_0000242_06010_d_0000017.jpg)
+
+*Same image, same model, same confidence threshold — direct 640 finds 10 objects, SAHI
+finds 24 (distant vehicles, roadside pedestrians, the truck on the right).*
 
 ## Traffic flow counting
 
@@ -108,6 +132,9 @@ uv run python scripts/make_subset.py
 
 # 5. evaluate a trained checkpoint (overall + per-class + small-object breakdown)
 uv run python scripts/evaluate.py --weights weights/yolo26s_visdrone_640.pt
+
+# 6. direct vs SAHI comparison (sweep + full val + side-by-side figures)
+uv run python scripts/sahi_compare.py --weights weights/yolo26s_visdrone_640.pt
 ```
 
 ## License & dataset attribution

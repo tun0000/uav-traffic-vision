@@ -40,11 +40,15 @@ AREA_RNG = [
 AREA_LBL = ["all", "tiny", "small", "medium", "large"]
 
 
-def build_gt_coco(data_root: Path, split: str) -> tuple[dict, list[Path]]:
-    """Convert YOLO-format val labels to a COCO-format GT dict."""
+def build_gt_coco(data_root: Path, split: str, images: list[Path] | None = None) -> tuple[dict, list[Path]]:
+    """Convert YOLO-format val labels to a COCO-format GT dict.
+
+    If `images` is given, builds GT only for that subset (ids follow its order).
+    """
     img_dir = data_root / "images" / split
     lbl_dir = data_root / "labels" / split
-    images = sorted(img_dir.glob("*.jpg"))
+    if images is None:
+        images = sorted(img_dir.glob("*.jpg"))
 
     coco = {
         "images": [],
@@ -110,7 +114,10 @@ def summarize_bucket(coco_eval: COCOeval, ap: int, area_lbl: str, max_det: int =
     return float(np.mean(s[s > -1])) if len(s[s > -1]) else -1.0
 
 
-def run_coco_eval(gt: dict, dt: list[dict], out_dir: Path) -> dict[str, float]:
+def run_coco_eval(
+    gt: dict, dt: list[dict], out_dir: Path, max_dets: list[int] | None = None
+) -> tuple[dict[str, float], COCOeval]:
+    out_dir.mkdir(parents=True, exist_ok=True)
     gt_path = out_dir / "gt_coco.json"
     dt_path = out_dir / "dt_coco.json"
     gt_path.write_text(json.dumps(gt))
@@ -121,6 +128,8 @@ def run_coco_eval(gt: dict, dt: list[dict], out_dir: Path) -> dict[str, float]:
     ev = COCOeval(coco_gt, coco_dt, iouType="bbox")
     ev.params.areaRng = AREA_RNG
     ev.params.areaRngLbl = AREA_LBL
+    if max_dets is not None:
+        ev.params.maxDets = max_dets
 
     ev.evaluate()
     ev.accumulate()
@@ -130,7 +139,7 @@ def run_coco_eval(gt: dict, dt: list[dict], out_dir: Path) -> dict[str, float]:
     for lbl in AREA_LBL:
         results[f"AP_{lbl}"] = summarize_bucket(ev, 1, lbl, 100)
         results[f"AR100_{lbl}"] = summarize_bucket(ev, 0, lbl, 100)
-    return results
+    return results, ev
 
 
 def pick_representative_images(data_root: Path, split: str, images: list[Path], n: int = 2) -> dict[str, list[Path]]:
@@ -202,8 +211,7 @@ def main() -> None:
     print("\n=== building COCO-format GT/DT for area-bucketed eval ===")
     gt, images = build_gt_coco(data_root, "val")
     dt = predict_coco(model, images, args.imgsz)
-    args.work_dir.mkdir(parents=True, exist_ok=True)
-    bucket_results = run_coco_eval(gt, dt, args.work_dir)
+    bucket_results, _ = run_coco_eval(gt, dt, args.work_dir)
 
     print("\n=== saving representative overlays ===")
     picks = pick_representative_images(data_root, "val", images)
