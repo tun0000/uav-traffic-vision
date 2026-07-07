@@ -19,9 +19,19 @@ from aerial viewpoints is the shared core capability. -->
 
 ## Dataset
 
-<!-- TODO(Phase 1): EDA highlights — class distribution, bbox area histogram
-(tiny/small objects dominate), objects-per-image distribution (dense scenes vs
-the 300-detection cap of end-to-end heads). See reports/dataset_stats.md -->
+VisDrone2019-DET — 6,471 train / 548 val images, 10 classes, auto-downloaded and
+converted by ultralytics' built-in `VisDrone.yaml`. Key findings from the EDA
+([full report](reports/dataset_stats.md)):
+
+- **Tiny objects dominate**: 60.5% of train boxes (68.5% of val) are smaller than
+  32×32 px at native resolution — the core motivation for higher input resolution
+  and SAHI sliced inference.
+- **Dense scenes**: 53 objects per image on average (train), up to 902. Only
+  0.2–0.5% of images exceed the 300-detection cap of YOLO26's end-to-end head,
+  so the cap matters far less than object size does.
+- **Heavy class imbalance**: 144.9k car instances vs 3.2k awning-tricycle.
+
+![bbox size distribution](reports/figures/bbox_area_hist.png)
 
 ## Results
 
