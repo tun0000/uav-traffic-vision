@@ -20,6 +20,7 @@ dependencies = [
     "onnxruntime>=1.27.0",
     "tensorrt-cu13>=11.1.0.106",
     "onnxruntime-gpu>=1.27.0",
+    "gradio>=6.19.0",
 ]
 
 [dependency-groups]
