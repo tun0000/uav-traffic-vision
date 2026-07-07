@@ -8,8 +8,9 @@ with [SAHI](https://github.com/obss/sahi) sliced inference for dense tiny object
 ByteTrack-based traffic flow counting, and an edge-deployment benchmark
 (ONNX / TensorRT FP16).
 
-> **Status: work in progress** — 640/1024 baselines evaluated, SAHI comparison,
-> traffic counting, and edge deployment benchmarks done; publishing still pending.
+> **Status: complete** — 640/1024 baselines evaluated, SAHI comparison, traffic
+> counting, and edge deployment benchmarks done; weights and a live demo are
+> published on Hugging Face (see Demo below).
 
 ## Why this matters
 
@@ -111,7 +112,7 @@ In short: resolution is the more efficient lever for the bulk of the size distri
 but SAHI still earns its 10x latency cost specifically on the smallest, hardest objects
 that resolution alone doesn't fully recover.
 
-| Dense scene (187 detections) | Small-object-heavy scene |
+| Dense scene (187 detections) | Small-object-heavy scene (10 detections) |
 |---|---|
 | ![dense scene](reports/figures/dense_0000295_02400_d_0000033.jpg) | ![small-object scene](reports/figures/tiny_0000242_06010_d_0000017.jpg) |
 
