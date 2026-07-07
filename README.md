@@ -28,11 +28,16 @@ Three application domains map directly onto the pieces built here:
   (this project's core small-object detection problem, and the reason SAHI sliced
   inference is the centerpiece experiment) is the same capability needed to spot
   defects, encroachments, or hazards in inspection footage.
-- **Coastal patrol**: the Ocean Affairs Council (海巡署) has already run a multi-year
-  drone pilot program (via Synmax Technology / Lite-On group) for maritime patrol,
-  extended after a positive review — detecting and tracking moving objects over
+- **Coastal patrol**: the Ocean Affairs Council (海巡署) has operated rotary-wing
+  drones for maritime patrol since 2018, but public oversight bodies have
+  documented real reliability problems along the way — a 2022 Control Yuan review
+  and legislative reports cite high failure rates and equipment idled after
+  failing civil aviation type certification. A second-generation procurement is
+  underway as of January 2026. Detecting and tracking moving objects over
   water from a patrolling airframe is a close analog to this project's
-  detect-track-count pipeline.
+  detect-track-count pipeline — and "does the perception stack actually work
+  reliably" is exactly the kind of question a program with this track record
+  needs answered.
 - **Smart traffic management**: the traffic flow counting module here (YOLO26 +
   ByteTrack + a virtual counting line) is a directly reusable building block for
   drone- or fixed-camera-based traffic monitoring, an area Taiwanese city
