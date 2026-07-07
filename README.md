@@ -35,34 +35,49 @@ converted by ultralytics' built-in `VisDrone.yaml`. Key findings from the EDA
 
 ## Results
 
-yolo26s trained 97 epochs (early-stopped, patience=20) at imgsz=640 on VisDrone2019-DET.
-All rows share one evaluation protocol (pycocotools, conf=0.01, maxDets=500 — dense
-scenes overflow COCO's default 100), so they are directly comparable. Per-class tables
-and figures: [reports/evaluation.md](reports/evaluation.md),
+Three settings, one evaluation protocol (pycocotools, conf=0.01, maxDets=500 — dense
+scenes overflow COCO's default 100), so every number below is directly comparable.
+yolo26s trained 97 epochs at imgsz=640 (early-stopped, patience=20, mAP50-95 0.220 at
+convergence) and a second run 74 epochs at imgsz=1024 (early-stopped, mAP50-95 0.293 —
+epoch 54 was the actual best checkpoint). Per-class tables and figures:
+[reports/evaluation.md](reports/evaluation.md) (640),
+[reports/evaluation_1024.md](reports/evaluation_1024.md) (1024),
 [reports/sahi_comparison.md](reports/sahi_comparison.md).
 
-| Setting | AP50 | AP@[.5:.95] | AP tiny (<16px) | AP small (16-32px) | AR@500 | ms/img (4090) |
-|---------|------|-------------|------------------|--------------------|--------|----------------|
-| yolo26s @ 640, direct | 0.380 | 0.222 | 0.075 | 0.184 | 0.348 | 10 |
-| yolo26s @ 1024, direct (training) | TBD | TBD | TBD | TBD | TBD | TBD |
-| yolo26s @ 640 + SAHI 512/0.2 | **0.465** | **0.269** | **0.134** | **0.248** | **0.455** | 107 |
+| Setting | AP50 | AP@[.5:.95] | AP tiny (<16px) | AP small | AP medium | AP large | ms/img (4090) |
+|---------|------|-------------|------------------|---------|-----------|----------|----------------|
+| yolo26s @ 640, direct | 0.380 | 0.222 | 0.075 | 0.184 | 0.316 | **0.480** | 10 |
+| yolo26s @ 1024, direct | **0.480** | **0.291** | 0.119 | **0.261** | **0.403** | 0.463 | 10 |
+| yolo26s @ 640 + SAHI 512/0.2 | 0.465 | 0.269 | **0.134** | 0.248 | 0.349 | 0.455 | 107 |
 
-Two independent evaluation paths agree closely (ultralytics `model.val()`: mAP50-95
-0.220; the pycocotools pipeline above: 0.222), cross-validating the tooling.
+Batch=1 latency on the RTX 4090 is essentially unchanged from 640 to 1024 (10.2 vs 10.0
+ms/img) — at this model scale the GPU isn't compute-saturated at either resolution, so
+fixed overhead (preprocessing, kernel launch) dominates over the ~2.6x difference in
+pixel count. This makes the 1024 checkpoint a strictly better choice than 640 on this
+hardware: higher accuracy at no latency cost. (This may not hold on smaller/edge GPUs —
+see Edge deployment below.)
 
-### Small-object breakdown
+Two independent evaluation paths agree closely at 640 (ultralytics `model.val()`:
+mAP50-95 0.220; the pycocotools pipeline above: 0.222) and at 1024 (0.293 vs 0.291),
+cross-validating the tooling.
 
-The dataset's small-object skew (see EDA above) shows up directly in accuracy — AP more
-than doubles from the smallest to the largest bucket:
+### Small-object breakdown: three techniques, no single winner
 
-| bucket (bbox side) | AP@[.5:.95] | AR@100 |
-|---------------------|-------------|--------|
-| tiny (<16px) | 0.075 | 0.184 |
-| small (16-32px) | 0.184 | 0.333 |
-| medium (32-96px) | 0.318 | 0.462 |
-| large (>96px) | 0.480 | 0.595 |
+No approach dominates every bucket — each wins where its mechanism actually applies:
 
-This gap is exactly what the SAHI comparison below is meant to close.
+- **SAHI wins the smallest objects** (AP tiny 0.134 vs 1024's 0.119 vs 640's 0.075):
+  slicing shows a tile at closer to native resolution than any single resize can,
+  even a resize to 1024.
+- **Higher training resolution wins small-to-medium objects** (AP small 0.261, AP
+  medium 0.403 — both the best of the three) and does it in a single forward pass,
+  no slicing overhead.
+- **Plain 640 direct is (barely) best on large objects** (0.480) — both SAHI's tiling
+  and 1024's downsampling introduce small costs there that resolution/slicing don't
+  pay back.
+
+In short: resolution is the more efficient lever for the bulk of the size distribution,
+but SAHI still earns its 10x latency cost specifically on the smallest, hardest objects
+that resolution alone doesn't fully recover.
 
 | Dense scene (187 detections) | Small-object-heavy scene |
 |---|---|

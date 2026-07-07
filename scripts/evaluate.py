@@ -81,13 +81,15 @@ def build_gt_coco(data_root: Path, split: str, images: list[Path] | None = None)
 
 
 def predict_coco(model: YOLO, images: list[Path], imgsz: int) -> list[dict]:
-    """Run predictions and format them as a COCO-format detections list."""
+    """Run predictions and format them as a COCO-format detections list.
+
+    Predicts one image per call rather than a single stream=True pass over the
+    whole list -- the latter was observed to accumulate CUDA memory and OOM at
+    imgsz=1024 on a 24GB card (fine at 640, where per-image memory is lower).
+    """
     dets = []
-    results = model.predict(
-        source=[str(p) for p in images], imgsz=imgsz, conf=0.001,
-        verbose=False, stream=True,
-    )
-    for img_id, r in enumerate(results):
+    for img_id, img_path in enumerate(images):
+        r = model.predict(str(img_path), imgsz=imgsz, conf=0.001, verbose=False)[0]
         boxes = r.boxes.xyxy.cpu().numpy()
         scores = r.boxes.conf.cpu().numpy()
         classes = r.boxes.cls.cpu().numpy().astype(int)
@@ -178,11 +180,15 @@ def pick_representative_images(data_root: Path, split: str, images: list[Path], 
 
 
 def save_overlays(model: YOLO, picks: dict[str, list[Path]], imgsz: int, out_dir: Path) -> None:
+    # different weights/imgsz must not collide on the same filename as another
+    # report's committed figures (e.g. the 640 and 1024 reports pick the same
+    # representative images, since selection is GT-based, not model-based)
+    suffix = "" if imgsz == 640 else f"_{imgsz}"
     out_dir.mkdir(parents=True, exist_ok=True)
     for tag, paths in picks.items():
         for img_path in paths:
             r = model.predict(str(img_path), imgsz=imgsz, conf=0.25, verbose=False)[0]
-            dst = out_dir / f"{tag}_{img_path.stem}.jpg"
+            dst = out_dir / f"{tag}_{img_path.stem}{suffix}.jpg"
             r.save(str(dst))
             print(f"  saved {dst} ({len(r.boxes)} detections @ conf>=0.25)")
 
@@ -208,8 +214,20 @@ def main() -> None:
         p, r, ap50, ap = metrics.box.class_result(idx)
         per_class.append((CLASS_NAMES[cls_id], p, r, ap50, ap))
 
+    # free the val() model before the predict pass -- reusing one model instance
+    # across val() + a 548-image predict() loop was observed to accumulate CUDA
+    # memory and OOM at imgsz=1024 (fine at 640, where per-image memory is lower)
+    del model
+    import gc
+
+    import torch
+
+    gc.collect()
+    torch.cuda.empty_cache()
+
     print("\n=== building COCO-format GT/DT for area-bucketed eval ===")
     gt, images = build_gt_coco(data_root, "val")
+    model = YOLO(str(args.weights))
     dt = predict_coco(model, images, args.imgsz)
     bucket_results, _ = run_coco_eval(gt, dt, args.work_dir)
 
@@ -217,7 +235,7 @@ def main() -> None:
     picks = pick_representative_images(data_root, "val", images)
     save_overlays(model, picks, args.imgsz, args.figures_dir)
 
-    lines = ["# Evaluation: yolo26s @ imgsz=640 on VisDrone2019-DET val", ""]
+    lines = [f"# Evaluation: yolo26s @ imgsz={args.imgsz} on VisDrone2019-DET val", ""]
     lines.append(f"Weights: `{args.weights}`. All numbers from actual script execution.")
     lines.append("")
     lines.append("## Overall (ultralytics `model.val()`)")
@@ -251,13 +269,14 @@ def main() -> None:
         lines.append(f"| {lbl} | {ap_v:.3f} | {ar_v:.3f} |")
     lines.append("")
 
+    fig_suffix = "" if args.imgsz == 640 else f"_{args.imgsz}"
     lines.append("## Representative predictions")
     lines.append("")
     for tag, paths in picks.items():
         label = "Dense scenes" if tag == "dense" else "Small-object-heavy scenes"
         lines.append(f"**{label}:**")
         for p in paths:
-            lines.append(f"![{tag}](figures/{tag}_{p.stem}.jpg)")
+            lines.append(f"![{tag}](figures/{tag}_{p.stem}{fig_suffix}.jpg)")
         lines.append("")
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
