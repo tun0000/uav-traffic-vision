@@ -231,7 +231,13 @@ export-friendly formats). For onboard deployment this removes real pain points:
 
 ## Demo
 
-<!-- TODO(Phase 2): Gradio demo (CPU ONNX, optional SAHI toggle) + HF Space link -->
+**Live demo**: [huggingface.co/spaces/betty0/uav-traffic-vision](https://huggingface.co/spaces/betty0/uav-traffic-vision)
+— image detection, runs on free CPU hardware (ONNX), with an opt-in SAHI toggle
+(off by default — meaningfully slower on CPU). Source: [`app/`](app/). Video
+tracking/counting is shown via the GIF above rather than a live demo (SAHI-on-CPU
+and multi-frame tracking together would be too slow for a free Space).
+
+Model weights + card: [huggingface.co/betty0/uav-traffic-vision](https://huggingface.co/betty0/uav-traffic-vision).
 
 ## Reproduce
 
