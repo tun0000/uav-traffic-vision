@@ -121,10 +121,11 @@
 - 結束後 best.pt 複製到 Drive 固定路徑，檔名沿用 `yolo26s_dota_1024` 命名慣例。
 - **此 notebook 完成後 Phase 3 本機端工作停止**，等使用者去 Colab 訓練、把權重放進 `weights/`。
 
-### Step 13（權重就位後，選做）：輕量評估
-- `model.val()` 直接拿 OBB 內建 mAP50 / mAP50-95（rotated IoU），不必另建 pycocotools pipeline。
-- 挑 2–3 張代表性影像（密集船隻／機場、細長橋樑）疊圖展示旋轉框（用 ultralytics 內建的 OBB plot）。
-- README 加一小節「另一種標註型態」，附 EDA 圖 + 訓練結果 + 疊圖，定調為補充展示而非第二個主線章節。
+### Step 13（權重就位後，選做）：輕量評估 — 已完成
+- `model.val()` 本機重跑，複現 Colab 數字：mAP50=0.7529、mAP50-95=0.6038，跟 Colab 驗證結果一致（`scripts/evaluate_dota_obb.py`）。
+- 訓練過程的誠實記錄：兩次獨立完整訓練（patience=20 停在 epoch 21；乾淨重跑 patience=30 停在 epoch 31）都收斂到同一個結果——fitness 在 epoch 1 就是最高點，後續微調都沒有超越過。`yolo26s-obb.pt` 本身就是 ultralytics 官方在 DOTAv1 上預訓練過的權重，這解釋了為什麼 epoch 1 已經很強；兩次獨立驗證都指向同一答案，數字視為穩定、可重現的最終結果。
+- 代表性疊圖：密集船隻（marina，503 個真實標註被 300-detection 上限截斷，跟 VisDrone EDA 那次發現的同一個現象再次出現）+ 細長橋樑（旋轉框精準貼合橋樑真實角度）。
+- README 加了「Bonus: a different annotation paradigm」小節，附 EDA 連結、結果表、疊圖，定調為補充展示，不是第二個主線章節。
 
 ### 風險與備案（Phase 3 專屬）
 - **DOTA-v1.0 官方下載失效** → 使用者手動下載官方連結，格式仍走 ultralytics 內建 loader。

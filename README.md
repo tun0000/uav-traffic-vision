@@ -230,6 +230,67 @@ export-friendly formats). For onboard deployment this removes real pain points:
    default to the smaller `yolo26n`/`yolo26s` scales rather than `l`/`x` for an
    airborne system, independent of raw accuracy.
 
+## Bonus: a different annotation paradigm (DOTA-v1.0, oriented bounding boxes)
+
+Optional Phase 3 add-on, not a second full pipeline — same aerial-imagery domain,
+showing that the YOLO26 workflow above adapts to a different label format:
+**oriented bounding boxes (OBB)** instead of VisDrone's axis-aligned ones, trained
+on [DOTA-v1.0](https://captain-whu.github.io/DOTA/index.html) (15 classes: planes,
+ships, vehicles, courts, and other aerial infrastructure).
+
+**Why OBB here**: DOTA's raw imagery runs 421–13,383px per side (median ~2,100px —
+[measured EDA](reports/dota_stats.md)), far too large for direct YOLO input, so
+images are tiled into overlapping 1024×1024 crops with ultralytics'
+[`split_dota`](https://docs.ultralytics.com/datasets/obb/) utility (15,749 train /
+5,297 val tiles from 1,869 raw images). And unlike VisDrone's mostly-overhead
+traffic cameras, DOTA objects are genuinely rotated: only 31–45% of boxes fall
+within 5° of axis-aligned — the rest (ships in harbors, planes on tarmac, bridges
+crossing at an angle) need a rotated box to fit tightly at all.
+
+### Results (`yolo26s-obb`, imgsz=1024, val split — 5,297 tiles)
+
+| metric | value |
+|--------|-------|
+| mAP50 | 0.753 |
+| mAP50-95 | 0.604 |
+| Precision | 0.798 |
+| Recall | 0.706 |
+
+Strongest classes: tennis court (AP50-95 0.903), plane (0.864). Weakest: bridge
+(0.343 — DOTA's most extreme aspect-ratio class) and helicopter (0.403 — only 122
+val instances). Full per-class table: [`reports/dota_obb_evaluation.md`](reports/dota_obb_evaluation.md).
+
+**An honest training note**: two independent full training runs (patience=20,
+stopped at epoch 21; a clean restart with patience=30, stopped at epoch 31) both
+converged to the identical result — fitness peaked at epoch 1 and was never beaten
+by further fine-tuning in either run. `yolo26s-obb.pt`'s pretrained checkpoint is
+already trained on DOTAv1 by Ultralytics, so epoch 1 here largely reflects that
+starting point; this project's own fine-tuning (single-scale, default
+augmentation, 1,869 source images) didn't find further headroom within either
+patience budget. The number above is real, validated, and reproducible on this
+machine — not read off an in-progress run.
+
+### Example detections
+
+| Dense scene (marina) | Elongated scene (bridge) |
+|---|---|
+| ![dense](reports/figures/dota_obb_dense_P0706__1024__87___158.jpg) | ![bridge](reports/figures/dota_obb_bridge_P1700__1024__2976___0.jpg) |
+
+The marina tile has 503 ground-truth ships — the model finds 300 of them, capped
+by YOLO26's end-to-end head, the same 300-detection ceiling flagged in this
+project's original VisDrone EDA showing up again in a completely different
+dataset. Notice the rotated boxes tracking each boat's actual heading (an
+axis-aligned box would need to be visibly larger to cover a diagonally-moored
+boat), and the bridge's box following the river crossing at its true angle
+rather than a loose axis-aligned rectangle.
+
+Training notebook: [`notebooks/train_yolo26obb_dota_colab.ipynb`](notebooks/train_yolo26obb_dota_colab.ipynb).
+Weights are not published to Hugging Face (this is a supplementary demonstration,
+not a maintained model release) — reproduce via the notebook if needed.
+
+DOTA-v1.0 (Wuhan University AISKYEYE team) is released for **academic use only**;
+commercial use is prohibited by the dataset license.
+
 ## Demo
 
 **Live demo**: [huggingface.co/spaces/betty0/uav-traffic-vision](https://huggingface.co/spaces/betty0/uav-traffic-vision)
