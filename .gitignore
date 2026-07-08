@@ -30,3 +30,6 @@ reports/.eval_coco/
 
 # harness-local state
 .claude/
+
+# personal notes — never published
+INTERVIEW_PREP.md
