@@ -112,14 +112,15 @@
 ### Step 10：DOTA EDA（本機）— 已完成
 `scripts/dota_stats.py`：觸發官方自動下載（沿用 VisDrone 的 DATASETS_DIR 凍結陷阱 fix：`settings.update` 後另開 subprocess），對 train/val 原始（未切片）影像統計：類別分佈、影像解析度分布（motivate 切片的必要性）、旋轉框轉 (w,h,angle) 後的面積分桶（沿用 VisDrone 同一套 tiny/small/medium/large 門檻方便跨資料集對照）、角度分布（量化有多少比例的框其實不是軸對齊）、長寬比分布（量化細長物件如 bridge/harbor 的存在）。輸出 `reports/dota_stats.md` + 4 張圖。
 
-### Step 11：本機 split_dota 切片 + 4090 smoke test
-`scripts/prepare_dota_obb.py`：對完整 train+val（1,869 張）跑一次 `split_trainval`（本機負責資料前處理，符合 CLAUDE.md 分工），輸出到 `~/datasets/DOTAv1-split/`；再從切好的 tile 中抽樣（300 train / 100 val，沿用 VisDrone smoke test 的抽樣數）建 `DOTAv1_obb_subset` + yaml。用 `yolo26n-obb.pt`、1 epoch、imgsz=1024 在小子集上驗證：loss 正常下降、val 算得出 OBB mAP、predict 疊圖目視確認框確實是旋轉的（非純軸對齊）。
+### Step 11：本機 split_dota 切片 + 4090 smoke test — 已完成
+`scripts/prepare_dota_obb.py`：對完整 train+val（1,869 張）跑一次 `split_trainval`（本機負責資料前處理，符合 CLAUDE.md 分工），實測輸出 15,749 train / 5,297 val tiles 到 `~/datasets/DOTAv1-split/`；再從切好的 tile 中抽樣（300 train / 100 val，沿用 VisDrone smoke test 的抽樣數）建 `DOTAv1_obb_subset` + yaml。用 `yolo26n-obb.pt`、1 epoch、imgsz=1024 在小子集上驗證：loss 正常下降、val 算得出 OBB mAP、predict 疊圖目視確認框確實是旋轉的（harbor/機場場景皆確認）。
 
-### Step 12：`notebooks/train_yolo26obb_dota_colab.ipynb`（Runtime → Run all 一鍵跑完）
+### Step 12：`notebooks/train_yolo26obb_dota_colab.ipynb`（Runtime → Run all 一鍵跑完）— 已完成
 - Colab 內重新下載 DOTAv1 原始資料 + 重新跑一次 `split_trainval`（Colab 本地磁碟，同 Phase 1 VisDrone「不依賴本機上傳、Colab 自己重下」的慣例）。
-- 訓練設定：`yolo26s-obb.pt`、imgsz=1024（tile 尺寸本身就是 1024，不需要像主線那樣另外比較 640 vs 1024）、epochs=100、patience=20、seed 固定；batch 依偵測到的 GPU 動態調整（A100/L4，沿用主線 1024 實驗學到的保守值起手：A100 24 / L4 8，因為 OBB head 在 1024 下的實際顯存足跡未知，先保守再視第一個 epoch 的 GPU_mem 決定要不要調高）。
+- 訓練設定最終版（跟原計畫的初版數字有出入，以實際跑出來的為準）：`yolo26s-obb.pt`、imgsz=1024、epochs=100、seed 固定；batch 在 A100 上實測掃過 24/40/64/96，64 是乾淨且最快的甜蜜點（96 會撞 OOM warning）；H100 後來加進來但沒空跑掃描，沿用 A100 的 64 當未驗證起始值。
+- 使用者中途要求「不用手動改」，改成全自動流程：cost-estimate probe 純參考、訓練/驗證/複製全自動串接、斷線自動偵測 `last.pt` 續跑。過程中修了兩個真實 ultralytics 陷阱：(1) `resume=True`（布林值）會呼叫 `get_latest_run()` 亂抓目錄下最新的 last.pt，要改用明確路徑字串；(2) 一個「正常結束」（EarlyStopping 或跑滿目標）的 checkpoint 無法用 `resume=` 接續，會拋 `AssertionError`，要改成用 `best.pt` 當新起點開全新訓練（獨立 run 名稱）。兩個都先在本機重現後才動 notebook。
+- patience 從 20 調到 30（見 Step 13 的訓練結果記錄）。
 - 結束後 best.pt 複製到 Drive 固定路徑，檔名沿用 `yolo26s_dota_1024` 命名慣例。
-- **此 notebook 完成後 Phase 3 本機端工作停止**，等使用者去 Colab 訓練、把權重放進 `weights/`。
 
 ### Step 13（權重就位後，選做）：輕量評估 — 已完成
 - `model.val()` 本機重跑，複現 Colab 數字：mAP50=0.7529、mAP50-95=0.6038，跟 Colab 驗證結果一致（`scripts/evaluate_dota_obb.py`）。

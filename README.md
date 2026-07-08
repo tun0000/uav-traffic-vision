@@ -10,7 +10,8 @@ ByteTrack-based traffic flow counting, and an edge-deployment benchmark
 
 > **Status: complete** — 640/1024 baselines evaluated, SAHI comparison, traffic
 > counting, and edge deployment benchmarks done; weights and a live demo are
-> published on Hugging Face (see Demo below).
+> published on Hugging Face (see Demo below). Plus an optional DOTA-v1.0
+> oriented-bounding-box bonus (see below).
 
 ## Why this matters
 
@@ -331,6 +332,19 @@ uv run python scripts/traffic_count.py --video ~/datasets/VisDrone-MOT-val/uav00
 
 # 8. export ONNX + TensorRT FP16, benchmark CPU vs GPU
 uv run python scripts/export_benchmark.py --weights weights/yolo26s_visdrone_640.pt
+
+# --- optional Phase 3 bonus: DOTA-v1.0 OBB (see "Bonus" section above) ---
+
+# 9. DOTA-v1.0 EDA (triggers the DOTAv1 auto-download on first run, ~2 GB)
+uv run python scripts/dota_stats.py
+
+# 10. tile DOTA-v1.0 with split_dota + build a local OBB smoke-test subset
+uv run python scripts/prepare_dota_obb.py
+
+# 11. train — open notebooks/train_yolo26obb_dota_colab.ipynb in Google Colab (Runtime -> Run all)
+
+# 12. evaluate the trained OBB checkpoint + save representative rotated-box overlays
+uv run python scripts/evaluate_dota_obb.py --weights weights/yolo26s_dota_1024.pt
 ```
 
 ## License & dataset attribution
@@ -340,4 +354,8 @@ Code is MIT licensed. The [VisDrone2019 dataset](https://github.com/VisDrone/Vis
 this project uses it for non-commercial portfolio research and does not redistribute
 the data. Model weights trained on VisDrone inherit that restriction. The traffic-counting
 demo uses a clip from [VisDrone2019-MOT val](https://huggingface.co/datasets/Voxel51/visdrone-mot)
-(same AISKYEYE source, mirrored under **CC BY-SA**).
+(same AISKYEYE source, mirrored under **CC BY-SA**). The optional [DOTA-v1.0
+bonus](#bonus-a-different-annotation-paradigm-dota-v10-oriented-bounding-boxes)
+uses [DOTA-v1.0](https://captain-whu.github.io/DOTA/index.html) (Wuhan University
+AISKYEYE team), released for **academic use only**; commercial use is prohibited,
+this project does not redistribute the data, and its weights are not published.
